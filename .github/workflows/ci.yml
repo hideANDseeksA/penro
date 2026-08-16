@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests (SQLite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  migrations-postgres:
+    name: Migrations (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: soiltax
+          POSTGRES_PASSWORD: soiltax
+          POSTGRES_DB: soiltax
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://soiltax:soiltax@localhost:5432/soiltax
+      SECRET_KEY: ci-secret-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - run: python -m app.seed
+      # A clean autogenerate means the models and the migrations agree.
+      - name: Check for un-migrated model changes
+        run: |
+          alembic revision --autogenerate -m drift-check --rev-id drift_check
+          if grep -q "op\." alembic/versions/drift_check_*.py; then
+            echo "Models drifted from migrations:"; cat alembic/versions/drift_check_*.py; exit 1
+          fi
+      - run: alembic downgrade base
+
+  migrations-mysql:
+    name: Migrations (MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: soiltax
+          MYSQL_DATABASE: soiltax
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -psoiltax" --health-interval=10s
+          --health-timeout=5s --health-retries=10
+    env:
+      DATABASE_URL: mysql+pymysql://root:soiltax@127.0.0.1:3306/soiltax?charset=utf8mb4
+      SECRET_KEY: ci-secret-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - run: python -m app.seed
+      - run: alembic downgrade base
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t soil-depletion-tax-api:ci .

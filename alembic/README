@@ -1,0 +1,27 @@
+Alembic migrations for the Camarines Norte Soil Depletion Tax System.
+
+The connection string is NOT stored here. `env.py` reads DATABASE_URL from
+app.core.config, so `sqlalchemy.url` in alembic.ini is deliberately blank and
+the same revisions run against PostgreSQL and MySQL unchanged.
+
+Common commands
+---------------
+  alembic upgrade head                 apply all migrations
+  alembic downgrade -1                 roll back one revision
+  alembic revision --autogenerate -m "add holiday calendar"
+  alembic current                      show the applied revision
+  alembic history --verbose            show the revision graph
+
+Portability rules for new revisions
+-----------------------------------
+  * UUID columns use app.core.types.GUID() — env.py's render_item emits it
+    automatically. Never let a raw postgresql.UUID or CHAR(36) into a revision.
+  * Every String column needs an explicit length; MySQL rejects unbounded
+    VARCHAR in an index.
+  * Money is DECIMAL(18,2), volume DECIMAL(18,3), tax rate DECIMAL(9,6).
+    Never Float — 1% of a contract value has to reconcile to the centavo.
+  * Keep index names short. MySQL caps identifiers at 64 characters, and
+    provincial_soil_depletion_tax_clearance is already 39 of them.
+
+On MySQL, create the database as InnoDB/utf8mb4 before the first upgrade:
+  CREATE DATABASE soiltax CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
