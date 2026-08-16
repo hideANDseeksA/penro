@@ -1,7 +1,7 @@
 """initial schema from ordinance ERD
 
-Revision ID: 99678d257ce4
-Revises: 
+Revision ID: 0001_initial
+Revises:
 Create Date: 2026-08-16 15:09:09.602343
 """
 from __future__ import annotations
@@ -15,6 +15,16 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
+# Applied to every create_table() call below so the schema is InnoDB/utf8mb4
+# regardless of the server's or database's default engine/charset. On
+# PostgreSQL these mysql_* kwargs are simply ignored by SQLAlchemy, so the
+# migration stays portable.
+_MYSQL_TABLE_KW = dict(
+    mysql_engine='InnoDB',
+    mysql_charset='utf8mb4',
+    mysql_collate='utf8mb4_unicode_ci',
+)
+
 
 def upgrade() -> None:
     """Create the full ordinance-derived schema.
@@ -22,7 +32,12 @@ def upgrade() -> None:
     Portable across PostgreSQL and MySQL: UUID keys go through
     app.core.types.GUID (native uuid on PostgreSQL, CHAR(36) on MySQL) and
     every String column carries an explicit length, which MySQL requires.
-    On MySQL, create the database itself as InnoDB/utf8mb4, e.g.
+
+    Every table is also created with explicit mysql_engine='InnoDB' and
+    utf8mb4 charset/collation (see _MYSQL_TABLE_KW), so the schema is
+    correct even if the target database's own defaults are wrong (e.g. an
+    older MySQL instance/db still defaulting to latin1 or MyISAM). It's
+    still good practice to create the database itself as InnoDB/utf8mb4:
         CREATE DATABASE soiltax CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
     Note: the user table is named ``app_user``. ``system_user`` cannot be used
@@ -34,7 +49,8 @@ def upgrade() -> None:
     sa.Column('document_name', sa.String(length=255), nullable=False),
     sa.Column('mineral_scope', sa.String(length=50), nullable=False),
     sa.Column('stage', sa.String(length=20), nullable=False),
-    sa.PrimaryKeyConstraint('document_type_id')
+    sa.PrimaryKeyConstraint('document_type_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_document_type_mineral_scope'), 'document_type', ['mineral_scope'], unique=False)
     op.create_index(op.f('ix_document_type_stage'), 'document_type', ['stage'], unique=False)
@@ -44,7 +60,8 @@ def upgrade() -> None:
     sa.Column('municipality', sa.String(length=100), nullable=True),
     sa.Column('barangay', sa.String(length=100), nullable=True),
     sa.Column('coordinates', sa.String(length=100), nullable=True),
-    sa.PrimaryKeyConstraint('extraction_site_id')
+    sa.PrimaryKeyConstraint('extraction_site_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_extraction_site_municipality'), 'extraction_site', ['municipality'], unique=False)
     op.create_index(op.f('ix_extraction_site_site_name'), 'extraction_site', ['site_name'], unique=False)
@@ -53,7 +70,8 @@ def upgrade() -> None:
     sa.Column('mineral_name', sa.String(length=150), nullable=False),
     sa.Column('mineral_category', sa.String(length=100), nullable=False),
     sa.Column('ordinary_quarry_resource_excluded', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('mineral_id')
+    sa.PrimaryKeyConstraint('mineral_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_mineral_mineral_category'), 'mineral', ['mineral_category'], unique=False)
     op.create_index(op.f('ix_mineral_mineral_name'), 'mineral', ['mineral_name'], unique=False)
@@ -62,34 +80,39 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('description', sa.String(length=500), nullable=True),
     sa.PrimaryKeyConstraint('operation_type_id'),
-    sa.UniqueConstraint('name')
+    sa.UniqueConstraint('name'),
+    **_MYSQL_TABLE_KW
     )
     op.create_table('national_agency',
     sa.Column('national_agency_id', app.core.types.GUID(), nullable=False),
     sa.Column('agency_name', sa.String(length=150), nullable=False),
     sa.PrimaryKeyConstraint('national_agency_id'),
-    sa.UniqueConstraint('agency_name')
+    sa.UniqueConstraint('agency_name'),
+    **_MYSQL_TABLE_KW
     )
     op.create_table('provincial_office',
     sa.Column('provincial_office_id', app.core.types.GUID(), nullable=False),
     sa.Column('office_name', sa.String(length=150), nullable=False),
     sa.Column('office_role', sa.String(length=255), nullable=True),
     sa.PrimaryKeyConstraint('provincial_office_id'),
-    sa.UniqueConstraint('office_name')
+    sa.UniqueConstraint('office_name'),
+    **_MYSQL_TABLE_KW
     )
     op.create_table('remedy_type',
     sa.Column('remedy_type_id', app.core.types.GUID(), nullable=False),
     sa.Column('remedy_name', sa.String(length=50), nullable=False),
     sa.Column('filing_deadline', sa.String(length=150), nullable=True),
     sa.PrimaryKeyConstraint('remedy_type_id'),
-    sa.UniqueConstraint('remedy_name')
+    sa.UniqueConstraint('remedy_name'),
+    **_MYSQL_TABLE_KW
     )
     op.create_table('role',
     sa.Column('role_id', app.core.types.GUID(), nullable=False),
     sa.Column('role_name', sa.String(length=50), nullable=False),
     sa.Column('description', sa.String(length=255), nullable=True),
     sa.PrimaryKeyConstraint('role_id'),
-    sa.UniqueConstraint('role_name')
+    sa.UniqueConstraint('role_name'),
+    **_MYSQL_TABLE_KW
     )
     op.create_table('taxpayer',
     sa.Column('taxpayer_id', app.core.types.GUID(), nullable=False),
@@ -98,7 +121,8 @@ def upgrade() -> None:
     sa.Column('tax_identification_details', sa.String(length=100), nullable=True),
     sa.Column('business_address', sa.String(length=255), nullable=True),
     sa.Column('active', sa.Boolean(), nullable=False),
-    sa.PrimaryKeyConstraint('taxpayer_id')
+    sa.PrimaryKeyConstraint('taxpayer_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_taxpayer_tax_identification_details'), 'taxpayer', ['tax_identification_details'], unique=False)
     op.create_index(op.f('ix_taxpayer_taxpayer_name'), 'taxpayer', ['taxpayer_name'], unique=False)
@@ -110,7 +134,8 @@ def upgrade() -> None:
     sa.Column('submission_date', sa.Date(), nullable=True),
     sa.Column('posting_date', sa.Date(), nullable=True),
     sa.ForeignKeyConstraint(['provincial_office_id'], ['provincial_office.provincial_office_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('report_id')
+    sa.PrimaryKeyConstraint('report_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_annual_collection_report_fiscal_year'), 'annual_collection_report', ['fiscal_year'], unique=False)
     op.create_index(op.f('ix_annual_collection_report_provincial_office_id'), 'annual_collection_report', ['provincial_office_id'], unique=False)
@@ -124,7 +149,8 @@ def upgrade() -> None:
     sa.Column('confidentiality_status', sa.String(length=50), nullable=False),
     sa.ForeignKeyConstraint(['provincial_office_id'], ['provincial_office.provincial_office_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('examination_id')
+    sa.PrimaryKeyConstraint('examination_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_books_examination_record_examination_date'), 'books_examination_record', ['examination_date'], unique=False)
     op.create_index(op.f('ix_books_examination_record_provincial_office_id'), 'books_examination_record', ['provincial_office_id'], unique=False)
@@ -139,7 +165,8 @@ def upgrade() -> None:
     sa.Column('quality', sa.String(length=100), nullable=True),
     sa.ForeignKeyConstraint(['extraction_site_id'], ['extraction_site.extraction_site_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['mineral_id'], ['mineral.mineral_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('extraction_record_id')
+    sa.PrimaryKeyConstraint('extraction_record_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_extraction_record_extraction_date'), 'extraction_record', ['extraction_date'], unique=False)
     op.create_index(op.f('ix_extraction_record_extraction_site_id'), 'extraction_record', ['extraction_site_id'], unique=False)
@@ -153,7 +180,8 @@ def upgrade() -> None:
     sa.Column('status', sa.String(length=50), nullable=False),
     sa.ForeignKeyConstraint(['operation_type_id'], ['mining_operation_type.operation_type_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('mining_operation_id')
+    sa.PrimaryKeyConstraint('mining_operation_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_mining_operation_operation_name'), 'mining_operation', ['operation_name'], unique=False)
     op.create_index(op.f('ix_mining_operation_operation_type_id'), 'mining_operation', ['operation_type_id'], unique=False)
@@ -167,7 +195,8 @@ def upgrade() -> None:
     sa.Column('reported_gross_receipts', sa.Numeric(precision=18, scale=2), nullable=True),
     sa.Column('return_status', sa.String(length=30), nullable=False),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('return_id')
+    sa.PrimaryKeyConstraint('return_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index('ix_return_taxpayer_period', 'soil_depletion_tax_return', ['taxpayer_id', 'return_period'], unique=True)
     op.create_index(op.f('ix_soil_depletion_tax_return_filing_date'), 'soil_depletion_tax_return', ['filing_date'], unique=False)
@@ -188,7 +217,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['role_id'], ['role.role_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('user_id'),
-    sa.UniqueConstraint('username')
+    sa.UniqueConstraint('username'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_app_user_provincial_office_id'), 'app_user', ['provincial_office_id'], unique=False)
     op.create_index(op.f('ix_app_user_role_id'), 'app_user', ['role_id'], unique=False)
@@ -203,7 +233,8 @@ def upgrade() -> None:
     sa.Column('ip_address', sa.String(length=45), nullable=True),
     sa.Column('logged_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['app_user.user_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('log_id')
+    sa.PrimaryKeyConstraint('log_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_audit_log_action'), 'audit_log', ['action'], unique=False)
     op.create_index(op.f('ix_audit_log_entity_id'), 'audit_log', ['entity_id'], unique=False)
@@ -215,14 +246,16 @@ def upgrade() -> None:
     sa.Column('extraction_site_id', app.core.types.GUID(), nullable=False),
     sa.ForeignKeyConstraint(['extraction_site_id'], ['extraction_site.extraction_site_id'], ),
     sa.ForeignKeyConstraint(['mining_operation_id'], ['mining_operation.mining_operation_id'], ),
-    sa.PrimaryKeyConstraint('mining_operation_id', 'extraction_site_id')
+    sa.PrimaryKeyConstraint('mining_operation_id', 'extraction_site_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_table('mining_operation_mineral',
     sa.Column('mining_operation_id', app.core.types.GUID(), nullable=False),
     sa.Column('mineral_id', app.core.types.GUID(), nullable=False),
     sa.ForeignKeyConstraint(['mineral_id'], ['mineral.mineral_id'], ),
     sa.ForeignKeyConstraint(['mining_operation_id'], ['mining_operation.mining_operation_id'], ),
-    sa.PrimaryKeyConstraint('mining_operation_id', 'mineral_id')
+    sa.PrimaryKeyConstraint('mining_operation_id', 'mineral_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_table('permit_authority',
     sa.Column('permit_authority_id', app.core.types.GUID(), nullable=False),
@@ -234,7 +267,8 @@ def upgrade() -> None:
     sa.Column('expiry_date', sa.Date(), nullable=True),
     sa.Column('status', sa.String(length=50), nullable=False),
     sa.ForeignKeyConstraint(['mining_operation_id'], ['mining_operation.mining_operation_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('permit_authority_id')
+    sa.PrimaryKeyConstraint('permit_authority_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_permit_authority_mining_operation_id'), 'permit_authority', ['mining_operation_id'], unique=False)
     op.create_index(op.f('ix_permit_authority_permit_number'), 'permit_authority', ['permit_number'], unique=False)
@@ -256,7 +290,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['mineral_id'], ['mineral.mineral_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['mining_operation_id'], ['mining_operation.mining_operation_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('shipment_id')
+    sa.PrimaryKeyConstraint('shipment_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_shipment_buyer'), 'shipment', ['buyer'], unique=False)
     op.create_index(op.f('ix_shipment_extraction_site_id'), 'shipment', ['extraction_site_id'], unique=False)
@@ -274,7 +309,8 @@ def upgrade() -> None:
     sa.Column('document_date', sa.Date(), nullable=True),
     sa.ForeignKeyConstraint(['national_agency_id'], ['national_agency.national_agency_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['shipment_id'], ['shipment.shipment_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('national_agency_document_id')
+    sa.PrimaryKeyConstraint('national_agency_document_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_national_agency_document_national_agency_id'), 'national_agency_document', ['national_agency_id'], unique=False)
     op.create_index(op.f('ix_national_agency_document_shipment_id'), 'national_agency_document', ['shipment_id'], unique=False)
@@ -289,7 +325,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['mining_operation_id'], ['mining_operation.mining_operation_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['provincial_office_id'], ['provincial_office.provincial_office_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['shipment_id'], ['shipment.shipment_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('monitoring_record_id')
+    sa.PrimaryKeyConstraint('monitoring_record_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_provincial_monitoring_record_mining_operation_id'), 'provincial_monitoring_record', ['mining_operation_id'], unique=False)
     op.create_index(op.f('ix_provincial_monitoring_record_monitoring_date'), 'provincial_monitoring_record', ['monitoring_date'], unique=False)
@@ -304,7 +341,8 @@ def upgrade() -> None:
     sa.Column('clearance_status', sa.String(length=50), nullable=False),
     sa.ForeignKeyConstraint(['shipment_id'], ['shipment.shipment_id'], ),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('clearance_id')
+    sa.PrimaryKeyConstraint('clearance_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_provincial_soil_depletion_tax_clearance_application_date'), 'provincial_soil_depletion_tax_clearance', ['application_date'], unique=False)
     op.create_index(op.f('ix_provincial_soil_depletion_tax_clearance_clearance_status'), 'provincial_soil_depletion_tax_clearance', ['clearance_status'], unique=False)
@@ -318,7 +356,8 @@ def upgrade() -> None:
     sa.Column('otp_reference', sa.String(length=100), nullable=True),
     sa.ForeignKeyConstraint(['return_id'], ['soil_depletion_tax_return.return_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['shipment_id'], ['shipment.shipment_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('return_shipment_id')
+    sa.PrimaryKeyConstraint('return_shipment_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_return_shipment_otp_reference'), 'return_shipment', ['otp_reference'], unique=False)
     op.create_index(op.f('ix_return_shipment_return_id'), 'return_shipment', ['return_id'], unique=False)
@@ -332,7 +371,8 @@ def upgrade() -> None:
     sa.Column('document_status', sa.String(length=50), nullable=False),
     sa.ForeignKeyConstraint(['document_type_id'], ['document_type.document_type_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['shipment_id'], ['shipment.shipment_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('shipment_document_id')
+    sa.PrimaryKeyConstraint('shipment_document_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_shipment_document_document_status'), 'shipment_document', ['document_status'], unique=False)
     op.create_index(op.f('ix_shipment_document_document_type_id'), 'shipment_document', ['document_type_id'], unique=False)
@@ -351,7 +391,8 @@ def upgrade() -> None:
     sa.Column('assessment_date', sa.Date(), nullable=False),
     sa.ForeignKeyConstraint(['shipment_id'], ['shipment.shipment_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('assessment_id')
+    sa.PrimaryKeyConstraint('assessment_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_tax_assessment_assessment_date'), 'tax_assessment', ['assessment_date'], unique=False)
     op.create_index(op.f('ix_tax_assessment_assessment_stage'), 'tax_assessment', ['assessment_stage'], unique=False)
@@ -368,7 +409,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['return_id'], ['soil_depletion_tax_return.return_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['shipment_id'], ['shipment.shipment_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('violation_id')
+    sa.PrimaryKeyConstraint('violation_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_violation_return_id'), 'violation', ['return_id'], unique=False)
     op.create_index(op.f('ix_violation_shipment_id'), 'violation', ['shipment_id'], unique=False)
@@ -384,7 +426,8 @@ def upgrade() -> None:
     sa.Column('sanction_date', sa.Date(), nullable=False),
     sa.Column('settled', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['violation_id'], ['violation.violation_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('sanction_id')
+    sa.PrimaryKeyConstraint('sanction_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_penalty_or_administrative_sanction_sanction_date'), 'penalty_or_administrative_sanction', ['sanction_date'], unique=False)
     op.create_index(op.f('ix_penalty_or_administrative_sanction_sanction_type'), 'penalty_or_administrative_sanction', ['sanction_type'], unique=False)
@@ -401,7 +444,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['assessment_id'], ['tax_assessment.assessment_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['clearance_id'], ['provincial_soil_depletion_tax_clearance.clearance_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('payment_id')
+    sa.PrimaryKeyConstraint('payment_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_tax_payment_assessment_id'), 'tax_payment', ['assessment_id'], unique=False)
     op.create_index(op.f('ix_tax_payment_clearance_id'), 'tax_payment', ['clearance_id'], unique=False)
@@ -419,7 +463,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['assessment_id'], ['tax_assessment.assessment_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['remedy_type_id'], ['remedy_type.remedy_type_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['taxpayer_id'], ['taxpayer.taxpayer_id'], ondelete='RESTRICT'),
-    sa.PrimaryKeyConstraint('remedy_id')
+    sa.PrimaryKeyConstraint('remedy_id'),
+    **_MYSQL_TABLE_KW
     )
     op.create_index(op.f('ix_taxpayer_remedy_assessment_id'), 'taxpayer_remedy', ['assessment_id'], unique=False)
     op.create_index(op.f('ix_taxpayer_remedy_filing_date'), 'taxpayer_remedy', ['filing_date'], unique=False)
